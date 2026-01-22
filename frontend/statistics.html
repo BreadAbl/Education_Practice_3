@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Статистика и аналитика</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Навигация -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="dashboard.html">🔧 Техника</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="dashboard.html">Заявки</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="statistics.html">Статистика</a>
+                    </li>
+                    <li class="nav-item" id="usersLink" style="display:none;">
+                        <a class="nav-link" href="users.html">Пользователи</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <span class="navbar-text text-white me-3">
+                            👤 <span id="userName">Загрузка...</span>
+                        </span>
+                    </li>
+                    <li class="nav-item">
+                        <button class="btn btn-outline-light btn-sm" onclick="logout()">Выход</button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h2 class="mb-4">📊 Статистика и аналитика</h2>
+
+        <!-- Общая статистика -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center bg-primary text-white">
+                    <div class="card-body">
+                        <h5>Всего заявок</h5>
+                        <p class="display-4" id="statTotalRequests">-</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center bg-success text-white">
+                    <div class="card-body">
+                        <h5>Завершено</h5>
+                        <p class="display-4" id="statCompleted">-</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center bg-warning text-dark">
+                    <div class="card-body">
+                        <h5>Среднее время</h5>
+                        <p class="display-4" id="statAvgTime">-</p>
+                        <small>дней</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center bg-info text-white">
+                    <div class="card-body">
+                        <h5>Мастеров</h5>
+                        <p class="display-4" id="statMasters">-</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- QR-код для обратной связи -->
+        <div class="card">
+            <div class="card-header">
+                <h5>📱 QR-код формы обратной связи</h5>
+            </div>
+            <div class="card-body text-center">
+                <img id="qrCode" src="" alt="QR-код" style="max-width: 300px;">
+                <p class="mt-3">
+                    <a href="#" id="feedbackLink" target="_blank" class="btn btn-primary">
+                        Открыть форму обратной связи
+                    </a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+
+    <script>
+        // Загрузка статистики
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadStatistics();
+            loadQRCode();
+        });
+
+        async function loadStatistics() {
+            try {
+                const response = await api.get('/statistics/');
+                const data = await response.json();
+
+                if (!response.ok) {
+                    console.error('Ошибка ответа:', data);
+                    return;
+                }
+
+                console.log('Получены данные статистики:', data);
+
+                // ✅ Под новый backend: числа лежат прямо в полях
+                document.getElementById('statTotalRequests').textContent = data.total_requests || 0;
+                document.getElementById('statCompleted').textContent = data.completed_requests || 0;
+                document.getElementById('statAvgTime').textContent = data.avg_completion_days || 0;
+                document.getElementById('statMasters').textContent = data.masters_count || 0;
+
+                // Статистика по проектам
+                displayProjectStats(data.project_statistics || []);
+
+                // Нагрузка на мастеров
+                displayMasterWorkload(data.master_workload || []);
+
+            } catch (error) {
+                console.error('Error loading statistics:', error);
+            }
+        }
+
+        function displayProjectStats(projects) {
+            const tbody = document.getElementById('projectStats');
+            if (!projects || projects.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Нет данных</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = projects.map(p => {
+                const total = p.total_requests || 0;
+                const completed = p.completed_requests || 0;
+                const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+                return `
+                    <tr>
+                        <td><strong>${p.project ?? 'Не указан'}</strong></td>
+                        <td>${total}</td>
+                        <td>${completed}</td>
+                        <td>
+                            <div class="progress">
+                                <div class="progress-bar bg-success" style="width: ${percentage}%">
+                                    ${percentage}%
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function displayMasterWorkload(masters) {
+            const tbody = document.getElementById('masterWorkload');
+            if (!masters || masters.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Нет данных</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = masters.map(m => `
+                <tr>
+                    <td>${m.master_name ?? '-'}</td>
+                    <td><span class="badge bg-warning">${m.active_requests ?? 0}</span></td>
+                    <td><span class="badge bg-success">${m.completed_requests ?? 0}</span></td>
+                    <td><strong>${m.total_requests ?? 0}</strong></td>
+                </tr>
+            `).join('');
+        }
+
+        function loadQRCode() {
+            const qrUrl = `${API_URL.replace('/api', '')}/qr/feedback`;
+            document.getElementById('qrCode').src = qrUrl;
+
+            // Ссылка на форму (из config.py)
+            document.getElementById('feedbackLink').href =
+                'https://docs.google.com/forms/d/e/1FAIpQLSdhZcExx6LSIXxk0ub55mSu-WIh23WYdGG9HY5EZhLDo7P8eA/viewform';
+        }
+    </script>
+</body>
+</html>
